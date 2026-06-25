@@ -83,6 +83,15 @@
     font-size:14px; z-index:6; opacity:0; transition:opacity .25s, top .25s; pointer-events:none;
   }
   .toast.show{opacity:1; top:10%;}
+  .maproom-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:700px;}
+  .maproom{cursor:pointer;width:152px;text-align:left;border:1px solid #ffffff22;border-radius:12px;
+    padding:10px 12px;background:var(--panel);color:var(--ink);font-family:inherit;transition:transform .05s ease,border-color .05s ease;}
+  .maproom:not(.locked):hover{transform:translateY(-2px);border-color:var(--accent);}
+  .maproom.locked{opacity:.42;cursor:not-allowed;}
+  .maproom .mr-no{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+  .maproom .mr-name{font-size:15px;font-weight:bold;margin:2px 0;line-height:1.1;}
+  .maproom .mr-age{font-size:12px;color:var(--accent);}
+  .maproom .mr-foot{font-size:12px;color:var(--muted);margin-top:7px;}
 </style>
 </head>
 <body>
@@ -102,6 +111,7 @@
     <canvas id="game"></canvas>
     <div class="minibtns">
       <button class="mini" id="muteBtn" title="Mute">🔊</button>
+      <button class="mini" id="hudMapBtn" title="Room select">🏠 Rooms</button>
       <button class="mini" id="resetBtn" title="Restart level (R)">↺ Level</button>
     </div>
     <div class="toast" id="toast"></div>
@@ -110,9 +120,14 @@
       <div class="age">An Action-Adventure Escape Game</div>
       <h1>Elvis Escape 🐺</h1>
       <p>You are <b>Elvis</b>, a pure-white Siberian husky and an absolute menace. Every time the humans leave,
-         it's your job to <b>break out of the room</b>. Push things into place, climb, and paw the levers to crack
-         open that sliding door. Grow from a 3-month-old puppy into a master escape artist across 5 rooms.</p>
-      <button class="btn" id="startBtn">Let Elvis loose ▸</button>
+         it's your job to <b>break out of the room</b>. Shove things into place, climb, tip furniture, and paw the
+         levers to crack open that sliding door. Grow from a 3-month-old puppy into a 4-year-old escape artist
+         across 8 rooms.</p>
+      <p style="color:var(--accent);font-style:italic;margin-top:0">One husky. Eight rooms. A lifetime of escapes (and a suspicious number of missing socks).</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+        <button class="btn" id="startBtn">Let Elvis loose ▸</button>
+        <button class="btn" id="mapBtn" style="background:linear-gradient(180deg,#cdd9e6,#9fb2c9);box-shadow:0 6px 0 #6b7a8c,0 10px 18px #0006">🏠 House Map</button>
+      </div>
       <div class="keys">
         <span><kbd>←</kbd><kbd>→</kbd> or <kbd>A</kbd><kbd>D</kbd> move</span>
         <span><kbd>Space</kbd> / <kbd>↑</kbd> / <kbd>W</kbd> jump</span>
@@ -132,7 +147,16 @@
       <div class="age">ESCAPED!</div>
       <h2 id="win-title">Free at last!</h2>
       <p id="win-blurb"></p>
+      <p id="win-stats" style="font-size:18px;color:var(--ink);font-weight:bold"></p>
       <button class="btn" id="winBtn">Next room ▸</button>
+    </div>
+
+    <div class="overlay hidden" id="mapScreen">
+      <div class="age">HOUSE MAP</div>
+      <h2>Pick a room</h2>
+      <p id="map-subtitle"></p>
+      <div class="maproom-grid" id="mapGrid"></div>
+      <button class="btn" id="mapBackBtn" style="background:linear-gradient(180deg,#cdd9e6,#9fb2c9);box-shadow:0 6px 0 #6b7a8c,0 10px 18px #0006">‹ Back</button>
     </div>
 
     <div class="overlay hidden" id="finalScreen">
@@ -159,7 +183,7 @@
 <script>
 "use strict";
 /* ============================================================
-   ELVIS ESCAPE — side-view puzzle-platformer
+   ELVIS ESCAPE - side-view puzzle-platformer
    - Per-pixel AABB physics (stable crate pushing + stacking)
    - Push crates onto paw-plates / climb to paw levers -> open the sliding door
    ============================================================ */
@@ -257,24 +281,90 @@ const LEVELS = [
     ],
   },
   {
-    room:"The Sliding Glass Door", age:"1.5 years", theme:"backyard",
-    blurb:"The final boss: the big backyard slider. Jam BOTH crates onto BOTH paw-plates and flip the lever on the ledge. Grab the socks while you're at it, legend.",
-    win:"Two crates, two plates, one lever, and a fully grown husky strolls into the sunshine.",
+    room:"The Hallway & Laundry", age:"1.5 years", theme:"hallway",
+    blurb:"The laundry room is sock paradise, down a hall so long the camera can barely keep up. Hop up the floating steps to the hall lever, shove the basket onto its plate, then slip through before the door clicks shut.",
+    win:"Lever flipped, basket parked, an armful of warm socks claimed. Self-control is for other dogs.",
+    map:[
+      "##############################",
+      "#............................#",
+      "#............................#",
+      "#............................#",
+      "#............................#",
+      "#............................#",
+      "#.....................L......#",
+      "#....................^^^.....#",
+      "#............................#",
+      "#....................^^^.....#",
+      "#............................#",
+      "#....................^^^....D#",
+      "#.@.....C...P..S............D#",
+      "##############################",
+    ],
+  },
+  {
+    room:"The Basement", age:"2 years", theme:"basement",
+    blurb:"Down into the dark, where the only way out is a window high on the wall. Hop the floating shelves all the way up to the latch, then shove a crate onto the floor plate to spring the door.",
+    win:"Up the shelves, plate held, window nudged free. Out you squeeze with a dusty sock trophy.",
     map:[
       "########################",
       "#......................#",
       "#......................#",
+      "#...............L......#",
+      "#..............^^^.....#",
       "#......................#",
+      "#..............^^^.....#",
       "#......................#",
-      "#.........S............#",
+      "#..............^^^.....#",
+      "#..........S...........#",
+      "#..............^^^.....#",
       "#......................#",
-      "#......................#",
-      "#....................S.#",
-      "#......................#",
-      "#...L.................D#",
-      "#..===................D#",
-      "#.@.....C..C..P..P....D#",
+      "#..............^^^....D#",
+      "#.@...C..P............D#",
       "########################",
+      "########################",
+    ],
+  },
+  {
+    room:"The Attic Sunroom", age:"3 years", theme:"attic",
+    blurb:"Fully grown and dramatic in the afternoon light. A gap splits the rafters in two. Tip the old dresser into a bridge, cross to the lever, then sort the crate and plate down below.",
+    win:"Dresser tipped, gap bridged, lever flipped, plate pressed. Magnificent, and you know it.",
+    map:[
+      "##################################",
+      "#................................#",
+      "#................................#",
+      "#................................#",
+      "#................................#",
+      "#................................#",
+      "#................................#",
+      "#................................#",
+      "#.................S.L............#",
+      "#......^====X...=======..........#",
+      "#................................#",
+      "#....^^^........................D#",
+      "#.@.....................C...P...D#",
+      "##################################",
+    ],
+  },
+  {
+    room:"The Great Sliding Door", age:"4 years", theme:"backyard",
+    blurb:"This is it. Four years a seasoned escape artist, facing your white whale: the big backyard slider. Park BOTH crates on BOTH plates, climb to the lever, and throw your full husky weight into the slide.",
+    win:"Two crates, two plates, one lever, and the great door rolls open. Sunlight, grass, wind in the fur. Elvis has left the building.",
+    map:[
+      "######################################",
+      "#....................................#",
+      "#....................................#",
+      "#....................................#",
+      "#....................................#",
+      "#....................................#",
+      "#........................L...........#",
+      "#.......................^^^..........#",
+      "#....................................#",
+      "#.......................^^^..........#",
+      "#...................................D#",
+      "#.......................^^^.........D#",
+      "#.@...C..C....P..P...S..............D#",
+      "######################################",
+      "######################################",
     ],
   },
 ];
@@ -313,7 +403,38 @@ const sfx = {
   push:()=>beep(120,0.04,'sawtooth',0.04),
   win:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.18,'triangle',0.12),i*120));},
   howl:()=>{ beep(300,0.26,'sawtooth',0.09,470); setTimeout(()=>beep(480,0.55,'sawtooth',0.10,560),240); setTimeout(()=>beep(560,0.5,'sawtooth',0.09,360),780); },
+  thud:()=>{ beep(95,0.13,'sawtooth',0.13,52); setTimeout(()=>beep(70,0.1,'sine',0.08),45); },
 };
+
+function tipKnockover(ko){
+  if(ko.tipped) return;
+  ko.tipped=true; ko.tipAnim=0;
+  sfx.thud();
+  shake=Math.max(shake,4);
+  flash("Tipped it over! 🪵");
+  spawnDust(ko.brX + (ko.dir>0?0:ko.brW), ko.brY+TILE, 8);
+  spawnBurst(ko.brX+ko.brW/2, ko.brY+TILE-6, '#caa066', 12);
+}
+
+// ---- gentle ambient music: a soft arpeggio tinted by the current room ----
+let musicOn=false, musicStep=0, musicTimer=null;
+const MUSIC_SCALES = {
+  living:[262,330,392,494], kitchen:[294,349,440,523], bedroom:[247,294,370,440],
+  garage:[262,311,392,466], hallway:[277,330,415,494], basement:[220,262,330,392],
+  attic:[294,370,440,554], backyard:[330,392,494,587],
+};
+function musicTick(){
+  if(!musicOn) return;
+  if(!muted && G && G.L){
+    const sc = MUSIC_SCALES[G.L.theme] || MUSIC_SCALES.living;
+    const n = sc[musicStep % sc.length] * ((Math.floor(musicStep/4)%2) ? 0.5 : 1);
+    beep(n, 1.1, 'sine', 0.03, n);
+    if(musicStep%4===0) beep(n/2, 1.5, 'triangle', 0.02, n/2);  // soft bass pulse
+  }
+  musicStep++;
+  musicTimer=setTimeout(musicTick, 640);
+}
+function startMusic(){ if(musicOn) return; musicOn=true; musicTick(); }
 
 // ---- Game state -------------------------------------------------
 let levelIndex = 0;
@@ -326,6 +447,11 @@ let animTime = 0, legPhase = 0;
 let particles = [];
 let celebrate = { active:false, t:0, dur:140, baseX:0, baseY:0 };
 const CELEB = { flipStart:42, landFrame:84 };
+let worldCols = COLS, worldRows = ROWS;   // per-level world size (viewport stays COLS x ROWS)
+const cam = { x:0, y:0 };
+let shake = 0;
+let levelFrames = 0;   // play time for the current room (frames)
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
 
 function aabb(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
 
@@ -337,20 +463,43 @@ function spawnBurst(x,y,color,n){
   }
   if(particles.length>240) particles.splice(0, particles.length-240);
 }
+function spawnDust(x,y,n){
+  n=n||5;
+  for(let i=0;i<n;i++){
+    const a=-Math.PI/2 + (Math.random()-0.5)*2.4, s=0.6+Math.random()*1.8;
+    particles.push({x:x+(Math.random()-0.5)*14, y, vx:Math.cos(a)*s*1.4, vy:-Math.abs(Math.sin(a))*s*0.6, life:0.7, color:'rgba(220,225,235,0.8)'});
+  }
+  if(particles.length>240) particles.splice(0, particles.length-240);
+}
+
+// follow-camera: centre on Elvis with look-ahead, clamped to world bounds
+function camTarget(){
+  const p=G.player, vw=COLS*TILE, vh=ROWS*TILE;
+  let tx = p.x+p.w/2 - vw/2 + p.facing*55;
+  let ty = p.y+p.h/2 - vh/2 - 20;
+  return { tx: clamp(tx,0,Math.max(0,worldCols*TILE-vw)), ty: clamp(ty,0,Math.max(0,worldRows*TILE-vh)) };
+}
+function updateCamera(){
+  const t=camTarget();
+  cam.x += (t.tx-cam.x)*0.12;
+  cam.y += (t.ty-cam.y)*0.12;
+  if(shake>0){ shake*=0.86; if(shake<0.25) shake=0; }
+}
 
 function buildLevel(idx){
   const L = LEVELS[idx];
   particles.length = 0;
   celebrate.active = false; celebrate.t = 0;
+  worldCols = L.map[0].length; worldRows = L.map.length;
   // validate map
-  L.map.forEach((r,i)=>{ if(r.length!==COLS) console.error(`Level ${idx} row ${i} length ${r.length} (expected ${COLS})`); });
+  L.map.forEach((r,i)=>{ if(r.length!==worldCols) console.error(`Level ${idx} row ${i} length ${r.length} (expected ${worldCols})`); });
   const solids = []; const tiles = [];
-  const crates=[], plates=[], levers=[], socks=[]; let doorCells=[]; let start={x:60,y:60};
-  for(let y=0;y<ROWS;y++){
+  const crates=[], plates=[], levers=[], socks=[], knockovers=[], oneways=[]; let doorCells=[]; let start={x:60,y:60};
+  for(let y=0;y<worldRows;y++){
     solids[y]=[]; tiles[y]=[];
-    for(let x=0;x<COLS;x++){
+    for(let x=0;x<worldCols;x++){
       const ch = L.map[y][x];
-      tiles[y][x] = (ch==='#'||ch==='=') ? ch : '.';
+      tiles[y][x] = (ch==='#'||ch==='='||ch==='^') ? ch : '.';
       solids[y][x] = (ch==='#'||ch==='=');
       const px=x*TILE, py=y*TILE;
       if(ch==='@') start={x:px+5,y:py+TILE-40};
@@ -359,38 +508,56 @@ function buildLevel(idx){
       else if(ch==='L') levers.push({x:px,y:py,w:TILE,h:TILE,on:false});
       else if(ch==='S') socks.push({x:px+8,y:py+10,w:TILE-16,h:TILE-16,got:false});
       else if(ch==='D') doorCells.push({x,y});
+      else if(ch==='X' || ch==='x'){ const dir=(ch==='X')?1:-1;       // knock-over pillar (X=tips right, x=tips left)
+        knockovers.push({dir, upX:px, upY:py-TILE, upW:TILE, upH:TILE*2, tipped:false, tipAnim:0,
+          brX:(dir>0?(x+1):(x-3))*TILE, brY:py, brW:TILE*3, brH:TILE}); }
+      else if(ch==='^') oneways.push({x:px, y:py, w:TILE, h:TILE, top:py});  // jump-through platform
     }
   }
   // door bounding box
   let dminx=99,dminy=99,dmaxx=-1,dmaxy=-1;
   doorCells.forEach(c=>{dminx=Math.min(dminx,c.x);dminy=Math.min(dminy,c.y);dmaxx=Math.max(dmaxx,c.x);dmaxy=Math.max(dmaxy,c.y);});
   const door = {x:dminx*TILE, y:dminy*TILE, w:(dmaxx-dminx+1)*TILE, h:(dmaxy-dminy+1)*TILE, open:false};
+  cam.x = clamp(start.x - COLS*TILE/2, 0, Math.max(0, worldCols*TILE - COLS*TILE));
+  cam.y = clamp(start.y - ROWS*TILE/2, 0, Math.max(0, worldRows*TILE - ROWS*TILE));
   return {
-    L, solids, tiles, crates, plates, levers, socks, door,
-    player:{x:start.x, y:start.y, w:30, h:40, vx:0, vy:0, onGround:false, facing:1,
+    L, solids, tiles, crates, plates, levers, socks, door, knockovers, oneways,
+    player:{x:start.x, y:start.y, w:30, h:40, vx:0, vy:0, onGround:false, facing:1, landSquash:0,
             tap:{active:false, t:0, dur:30, hitFrame:15, hit:false, target:null}},
-    socksGot:0, leverPrompt:false, doorWasOpen:false,
+    socksGot:0, leverPrompt:false, knockPrompt:false, doorWasOpen:false,
   };
 }
 
-// solid tile test (includes closed door)
+// knock-over solid rect (upright box, or bridge once tipped)
+function knockRect(ko){ return ko.tipped ? {x:ko.brX,y:ko.brY,w:ko.brW,h:ko.brH} : {x:ko.upX,y:ko.upY,w:ko.upW,h:ko.upH}; }
+// one-way: blocks only a downward move whose bottom crossed the platform top this frame
+function oneWayBlocks(prevBottom, r){
+  for(const ow of G.oneways){
+    if(r.x < ow.x+ow.w && r.x+r.w > ow.x && prevBottom <= ow.top && r.y+r.h > ow.top) return true;
+  }
+  return false;
+}
+
+// solid tile test (includes closed door + knock-over pillars/bridges)
 function solidAt(px,py){
   const cx=Math.floor(px/TILE), cy=Math.floor(py/TILE);
-  if(cx<0||cy<0||cx>=COLS||cy>=ROWS) return true;
+  if(cx<0||cy<0||cx>=worldCols||cy>=worldRows) return true;
   if(G.solids[cy][cx]) return true;
   // closed door is solid
   if(!G.door.open && px>=G.door.x && px<G.door.x+G.door.w && py>=G.door.y && py<G.door.y+G.door.h) return true;
+  for(const ko of G.knockovers){ const rk=knockRect(ko); if(px>=rk.x&&px<rk.x+rk.w&&py>=rk.y&&py<rk.y+rk.h) return true; }
   return false;
 }
 function rectHitsStatic(r){
   const x0=Math.floor(r.x/TILE), x1=Math.floor((r.x+r.w-0.01)/TILE);
   const y0=Math.floor(r.y/TILE), y1=Math.floor((r.y+r.h-0.01)/TILE);
   for(let cy=y0;cy<=y1;cy++) for(let cx=x0;cx<=x1;cx++){
-    if(cx<0||cy<0||cx>=COLS||cy>=ROWS) return true;
+    if(cx<0||cy<0||cx>=worldCols||cy>=worldRows) return true;
     if(G.solids[cy][cx]) return true;
   }
   // closed door
   if(!G.door.open && aabb(r,G.door)) return true;
+  for(const ko of G.knockovers){ if(aabb(r, knockRect(ko))) return true; }
   return false;
 }
 function crateAtRect(r, except){
@@ -414,8 +581,9 @@ function canShiftCrate(i, dx, moving){
 function update(){
   if(!running) return;
   const p = G.player;
+  updateCamera();
 
-  // ---- escape celebration: howl, backflip, tail wag — then the win screen
+  // ---- escape celebration: howl, backflip, tail wag, then the win screen
   if(celebrate.active){
     celebrate.t++;
     if(celebrate.t===2) sfx.howl();
@@ -485,10 +653,12 @@ function update(){
   for(const i of order){
     const c=G.crates[i]; c.vy+=GRAVITY; if(c.vy>MAX_FALL)c.vy=MAX_FALL;
     let my=Math.round(c.vy); const sy=Math.sign(my)||1;
+    const prevBottom=c.y+c.h;
     for(let s=0;s<Math.abs(my);s++){
       const r={x:c.x,y:c.y+sy,w:c.w,h:c.h};
       if(rectHitsStatic(r)){ c.vy=0; break; }
       if(crateAtRect(r,i)>=0){ c.vy=0; break; }
+      if(sy>0 && oneWayBlocks(prevBottom, r)){ c.vy=0; break; } // rest on a one-way platform
       if(sy>0 && aabb(r,p)){ c.vy=0; break; } // rest on dog's head, rare
       c.y+=sy;
     }
@@ -498,15 +668,18 @@ function update(){
   let my = Math.round(p.vy); const sy=Math.sign(my)||1;
   let landed=false;
   p.onGround=false;
+  const prevBottom=p.y+p.h;
   for(let s=0;s<Math.abs(my);s++){
     const r={x:p.x,y:p.y+sy,w:p.w,h:p.h};
     if(rectHitsStatic(r)){ if(sy>0){p.onGround=true; landed=true;} p.vy=0; break; }
+    if(sy>0 && oneWayBlocks(prevBottom, r)){ p.onGround=true; landed=true; p.vy=0; break; } // land on one-way
     const ci=crateAtRect(r,-1);
     if(ci>=0){ if(sy>0){p.onGround=true; landed=true;} p.vy=0; break; }
     p.y+=sy;
   }
   if(p.onGround) coyote=6;
-  if(landed && Math.abs(my)>6) sfx.land();
+  if(landed && Math.abs(my)>6){ sfx.land(); spawnDust(p.x+p.w/2, p.y+p.h, 5); p.landSquash=Math.min(1,Math.abs(my)/14); if(Math.abs(my)>11) shake=Math.max(shake,3); }
+  if(p.landSquash>0) p.landSquash=Math.max(0, p.landSquash-0.12);
 
   // ---- plates pressed by crates
   G.plates.forEach(pl=>{
@@ -529,9 +702,22 @@ function update(){
     }
   });
 
+  // ---- knock-over interaction: press E next to a pillar to tip it into a bridge
+  G.knockPrompt=false;
+  G.knockovers.forEach(ko=>{
+    if(ko.tipped) return;
+    const near={x:ko.upX-14,y:ko.upY,w:ko.upW+28,h:ko.upH+12};
+    if(aabb(p,near) && p.onGround && !p.tap.active){
+      G.knockPrompt=true;
+      if(keys.act) tipKnockover(ko);
+    }
+  });
+  // tip animation timer
+  G.knockovers.forEach(ko=>{ if(ko.tipped && ko.tipAnim<1) ko.tipAnim=Math.min(1, ko.tipAnim+0.14); });
+
   // ---- socks
   G.socks.forEach(s=>{
-    if(!s.got && aabb(p,s)){ s.got=true; G.socksGot++; totalSocks++; sfx.collect(); flash("Got a sock! 🧦"); }
+    if(!s.got && aabb(p,s)){ s.got=true; G.socksGot++; totalSocks++; sfx.collect(); flash("Got a sock! 🧦"); spawnBurst(s.x+s.w/2, s.y+s.h/2, '#ffd56b', 10); }
   });
 
   // ---- door open condition: all plates pressed AND all levers on
@@ -554,7 +740,7 @@ function update(){
 
   // animation phase
   if(Math.abs(p.vx)>0.1 && p.onGround) legPhase += 0.32; else legPhase += 0.05;
-  animTime += 1;
+  animTime += 1; levelFrames += 1;
   updateHUD();
 }
 
@@ -564,13 +750,25 @@ const THEMES = {
   kitchen: {wallA:'#5a6b74',wallB:'#465058',floor:'#788790',bg1:'#bcd2d8',bg2:'#8aa3ac',accent:'#7fc8c0'},
   bedroom: {wallA:'#5b5680',wallB:'#454066',floor:'#6f6896',bg1:'#b7aede',bg2:'#8a82bd',accent:'#c79be0'},
   garage:  {wallA:'#55595e',wallB:'#3f4348',floor:'#6a6e74',bg1:'#9aa1a8',bg2:'#70767d',accent:'#f0a93b'},
+  hallway: {wallA:'#7a6a86',wallB:'#5d4f69',floor:'#8a7a96',bg1:'#d8cbe6',bg2:'#a99cc2',accent:'#e0a85f'},
+  basement:{wallA:'#4a4d57',wallB:'#34373f',floor:'#5a5d68',bg1:'#6b6f7c',bg2:'#3e424c',accent:'#7fc8c0'},
+  attic:   {wallA:'#8a6a4a',wallB:'#6b4f36',floor:'#9c7a52',bg1:'#f3dca8',bg2:'#d9a96b',accent:'#ffb454'},
   backyard:{wallA:'#4f6b50',wallB:'#3b513c',floor:'#6f8c6a',bg1:'#bfe3c4',bg2:'#86c2e8',accent:'#ffd56b'},
 };
 
 function render(){
-  const W=COLS*TILE, H=ROWS*TILE;
+  const VW=COLS*TILE, VH=ROWS*TILE;
+  const W=worldCols*TILE, H=worldRows*TILE;
   const th = THEMES[G.L.theme] || THEMES.living;
-  // background
+
+  // clear viewport, then draw the world under the follow-camera (+ shake)
+  ctx.clearRect(0,0,VW,VH);
+  ctx.save();
+  const shx = shake>0 ? (Math.random()*2-1)*shake : 0;
+  const shy = shake>0 ? (Math.random()*2-1)*shake : 0;
+  ctx.translate(-Math.round(cam.x)+shx, -Math.round(cam.y)+shy);
+
+  // background (whole world)
   const g=ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,th.bg1); g.addColorStop(1,th.bg2);
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
@@ -588,7 +786,7 @@ function render(){
   }
 
   // tiles
-  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+  for(let y=0;y<worldRows;y++) for(let x=0;x<worldCols;x++){
     const t=G.tiles[y][x]; if(t==='.') continue;
     const px=x*TILE, py=y*TILE;
     if(t==='#'){
@@ -599,8 +797,16 @@ function render(){
       roundRect(px+1,py+2,TILE-2,TILE-6,6); ctx.fillStyle=th.accent; ctx.fill();
       ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(px+1,py+TILE-8,TILE-2,4);
       ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(px+3,py+4,TILE-6,3);
+    } else if(t==='^'){ // one-way platform (stand on top, jump up through)
+      ctx.fillStyle=th.accent; roundRect(px+1,py+1,TILE-2,7,3); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.22)'; ctx.fillRect(px+3,py+2,TILE-6,2);
+      ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(px+2,py+7,TILE-4,2);
+      ctx.fillStyle='rgba(0,0,0,0.10)'; ctx.fillRect(px+5,py+9,3,5); ctx.fillRect(px+TILE-8,py+9,3,5);
     }
   }
+
+  // knock-over furniture (upright) / bridges (tipped)
+  G.knockovers.forEach(ko=>drawKnockover(ko, th));
 
   // plates
   G.plates.forEach(pl=>{
@@ -641,13 +847,15 @@ function render(){
   // Elvis
   drawElvis(G.player);
 
-  // particles (sparkles)
+  // particles (sparkles + dust)
   for(const q of particles){
     ctx.globalAlpha=Math.max(0,q.life);
     ctx.fillStyle=q.color;
     ctx.beginPath(); ctx.arc(q.x,q.y, 2+(1-q.life)*1.6, 0, 7); ctx.fill();
   }
   ctx.globalAlpha=1;
+
+  ctx.restore();
 }
 
 function roundRect(x,y,w,h,r){
@@ -669,6 +877,36 @@ function drawSock(s){
   ctx.fillStyle='#e44b6d'; ctx.fillRect(-5,-12,10,4); // stripe
   ctx.fillStyle='#6db7e8'; ctx.fillRect(-5,-6,10,3);
   ctx.restore();
+}
+function drawKnockover(ko, th){
+  if(!ko.tipped){
+    const x=ko.upX, y=ko.upY, w=ko.upW, h=ko.upH;
+    // upright furniture pillar (a tall dresser)
+    ctx.fillStyle='#6e4f33'; roundRect(x+4,y+2,w-8,h-4,5); ctx.fill();
+    ctx.fillStyle='#8a6743'; roundRect(x+7,y+5,w-14,h-10,4); ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(x+7,y+h/2-1,w-14,3);     // drawer line
+    ctx.fillStyle='#c8a878'; ctx.beginPath(); ctx.arc(x+w/2,y+h*0.30,2.2,0,7); ctx.fill();
+    ctx.fillStyle='#c8a878'; ctx.beginPath(); ctx.arc(x+w/2,y+h*0.72,2.2,0,7); ctx.fill();
+    if(G.knockPrompt){
+      ctx.fillStyle='#0c1118cc'; roundRect(x-8,y-22,w+16,18,6); ctx.fill();
+      ctx.fillStyle='#fff'; ctx.font='bold 11px Trebuchet MS'; ctx.textAlign='center';
+      ctx.fillText('E to tip', x+w/2, y-9);
+    }
+  } else {
+    // tipped bridge lying on the ground (animate a quick fall)
+    const k=ko.tipAnim;
+    ctx.save();
+    // pivot from the base for the fall
+    const pivotX = ko.dir>0 ? ko.upX+ko.upW : ko.upX;
+    ctx.translate(pivotX, ko.brY+TILE);
+    ctx.rotate(ko.dir*(1-k)*Math.PI/2);
+    ctx.translate(-pivotX, -(ko.brY+TILE));
+    ctx.fillStyle='#7a5a3c'; roundRect(ko.brX+2,ko.brY+8,ko.brW-4,TILE-14,5); ctx.fill();
+    ctx.fillStyle='#9c7853'; roundRect(ko.brX+5,ko.brY+11,ko.brW-10,TILE-20,4); ctx.fill();
+    ctx.strokeStyle='rgba(70,45,20,0.5)'; ctx.lineWidth=2;
+    for(let i=1;i<3;i++){ ctx.beginPath(); ctx.moveTo(ko.brX+i*TILE,ko.brY+11); ctx.lineTo(ko.brX+i*TILE,ko.brY+TILE-12); ctx.stroke(); }
+    ctx.restore();
+  }
 }
 function drawCrate(c, th){
   ctx.save();
@@ -739,6 +977,13 @@ function drawElvis(p){
     ctx.restore();
   }
 
+  // squash & stretch (stretch while rising, squash on landing / fast fall)
+  let sqx=1, sqy=1;
+  if(!celebrate.active){
+    const vv=clamp(p.vy/MAX_FALL,-1,1);
+    sqy=(1 - vv*0.10) * (1 - (p.landSquash||0)*0.28);
+    sqx=(1 + vv*0.08) * (1 + (p.landSquash||0)*0.24);
+  }
   ctx.save();
   if(celebrate.active){
     ctx.translate(cx, feet - cHop - 22);   // pivot around the body centre
@@ -747,7 +992,7 @@ function drawElvis(p){
     ctx.translate(0, 22);                   // restore feet-origin for the draw code
   } else {
     ctx.translate(cx, feet);
-    ctx.scale(p.facing, 1);
+    ctx.scale(p.facing*sqx, sqy);
   }
 
   const moving = Math.abs(p.vx)>0.1 && p.onGround;
@@ -843,11 +1088,16 @@ function drawElvis(p){
   // nose
   ctx.fillStyle=NOSE; ctx.beginPath(); ctx.ellipse(20,1,3,2.4,0,0,7); ctx.fill();
   ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(19,0,0.9,0,7); ctx.fill();
-  // blue eye
-  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(6,-3,3.6,0,7); ctx.fill();
-  ctx.fillStyle=EYE; ctx.beginPath(); ctx.arc(6.6,-3,2.5,0,7); ctx.fill();
-  ctx.fillStyle=NOSE; ctx.beginPath(); ctx.arc(7,-3,1.1,0,7); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(5.6,-4,0.9,0,7); ctx.fill();
+  // blue eye (with the occasional blink)
+  if((animTime%200)<7 && !celebrate.active){
+    ctx.strokeStyle=NOSE; ctx.lineWidth=1.6; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(3,-3); ctx.lineTo(9,-3); ctx.stroke();
+  } else {
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(6,-3,3.6,0,7); ctx.fill();
+    ctx.fillStyle=EYE; ctx.beginPath(); ctx.arc(6.6,-3,2.5,0,7); ctx.fill();
+    ctx.fillStyle=NOSE; ctx.beginPath(); ctx.arc(7,-3,1.1,0,7); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(5.6,-4,0.9,0,7); ctx.fill();
+  }
   ctx.restore();
 
   ctx.restore();
@@ -883,6 +1133,40 @@ function loop(ts){
 requestAnimationFrame(loop);
 
 // ===================== HUD / FLOW =====================
+// ===================== PROGRESSION / SAVE =====================
+const SAVE_KEY = 'elvisEscapeSave_v2';
+function loadSave(){
+  try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s&&typeof s==='object') return Object.assign({unlocked:0,best:{},muted:false},s); }catch(e){}
+  return {unlocked:0,best:{},muted:false};
+}
+let save = loadSave();
+function persist(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(e){} }
+const MEDAL_RANK = {bronze:1, silver:2, gold:3};
+const MEDAL_ICON = {bronze:'🥉', silver:'🥈', gold:'🥇'};
+function levelMedal(socksGot, totalInLevel){
+  if(totalInLevel===0 || socksGot>=totalInLevel) return 'gold';
+  return socksGot>0 ? 'silver' : 'bronze';
+}
+
+const START_TAGLINE = "One husky. Eight rooms. A lifetime of escapes (and a suspicious number of missing socks).";
+const FINAL_MONTAGE = "From a wobbly 3-month-old fuzzball who needed a wobbly staircase just to clear a baby gate, to a 4-year-old legend who shouldered open the big sliding door, Elvis grew up one escape at a time. The cabinets that once towered, the floorboards that once squeaked, the garage that once seemed enormous: all conquered, all left in a happy trail of fur. Final tally: {SOCKS} socks stolen, zero apologies offered. Elvis has left the building, and he took the laundry with him.";
+
+function renderHouseMap(){
+  const grid=el('mapGrid'); grid.innerHTML='';
+  for(let i=0;i<LEVELS.length;i++){
+    const L=LEVELS[i], unlocked=(i<=save.unlocked), b=save.best[i];
+    const card=document.createElement('button');
+    card.className='maproom'+(unlocked?'':' locked'); card.disabled=!unlocked;
+    card.innerHTML='<div class="mr-no">Room '+(i+1)+'</div>'+
+      '<div class="mr-name">'+L.room+'</div>'+
+      '<div class="mr-age">'+L.age+'</div>'+
+      '<div class="mr-foot">'+(unlocked ? (b ? (MEDAL_ICON[b.medal]||'')+' best '+(b.socks||0)+' 🧦' : 'Not cleared yet') : '🔒 Locked')+'</div>';
+    if(unlocked) card.onclick=()=>{ hide('mapScreen'); startLevel(i); };
+    grid.appendChild(card);
+  }
+  el('map-subtitle').textContent = "Every room is a year older, every door a little trickier. Pick where the great escape continues.";
+}
+
 function updateHUD(){
   document.getElementById('hud-room').textContent = G.L.room;
   document.getElementById('hud-age').textContent = G.L.age;
@@ -916,14 +1200,14 @@ function show(id){ el(id).classList.remove('hidden'); }
 function hide(id){ el(id).classList.add('hidden'); }
 
 function startLevel(idx){
-  levelIndex=idx; G=buildLevel(idx); running=false;
+  levelIndex=idx; G=buildLevel(idx); running=false; levelFrames=0;
   el('intro-age').textContent = G.L.age.toUpperCase()+' OLD';
   el('intro-title').textContent = 'Room '+(idx+1)+': '+G.L.room;
   el('intro-blurb').textContent = G.L.blurb;
   show('introScreen');
   render(); updateHUD();
 }
-function beginPlay(){ hide('introScreen'); running=true; if(actx&&actx.state==='suspended')actx.resume(); }
+function beginPlay(){ hide('introScreen'); running=true; if(actx&&actx.state==='suspended')actx.resume(); startMusic(); }
 
 function startCelebration(){
   if(celebrate.active) return;
@@ -935,15 +1219,29 @@ function startCelebration(){
 function winLevel(){
   if(!running) return;
   running=false; sfx.win();
+  const total=G.socks.length, got=G.socksGot;
+  const medal=levelMedal(got, total);
+  const time=Math.max(1, Math.round(levelFrames/60));
+  const prev=save.best[levelIndex];
+  save.best[levelIndex] = {
+    socks: Math.max(got, prev ? (prev.socks||0) : 0),
+    medal: (prev && MEDAL_RANK[prev.medal] > MEDAL_RANK[medal]) ? prev.medal : medal,
+    time:  (prev && prev.time) ? Math.min(prev.time, time) : time,
+  };
+  save.unlocked = Math.min(LEVELS.length-1, Math.max(save.unlocked, levelIndex+1));
+  persist();
   el('win-title').textContent = 'Escaped '+G.L.room+'!';
-  el('win-blurb').textContent = G.L.win + (G.socksGot? '  (+'+G.socksGot+' sock'+(G.socksGot>1?'s':'')+' nabbed)':'');
+  el('win-blurb').textContent = G.L.win;
+  el('win-stats').innerHTML = MEDAL_ICON[medal]+' '+medal.toUpperCase()+
+    ' &nbsp;·&nbsp; 🧦 '+got+'/'+total+' &nbsp;·&nbsp; ⏱ '+time+'s';
+  el('winBtn').textContent = (levelIndex+1<LEVELS.length) ? 'Next room ▸' : 'See the finale ▸';
   show('winScreen');
 }
 function nextLevel(){
   hide('winScreen');
   if(levelIndex+1 < LEVELS.length) startLevel(levelIndex+1);
   else{
-    el('final-blurb').textContent = 'From a 3-month-old fluffball to a fully grown Siberian husky, Elvis cracked every room in the house. Total socks stolen: '+totalSocks+'. Nobody can keep this dog contained. 🐺🧦';
+    el('final-blurb').textContent = FINAL_MONTAGE.replace('{SOCKS}', String(totalSocks));
     show('finalScreen');
   }
 }
@@ -974,18 +1272,23 @@ document.querySelectorAll('#touch .tbtn').forEach(b=>{
 });
 if('ontouchstart' in window) document.getElementById('touch').classList.add('show');
 
-function restartLevel(){ const i=levelIndex; G=buildLevel(i); running=true; flash('Room reset ↺'); }
-function toggleMute(){ muted=!muted; el('muteBtn').textContent = muted?'🔇':'🔊'; }
+function restartLevel(){ const i=levelIndex; G=buildLevel(i); running=true; levelFrames=0; flash('Room reset ↺'); }
+function toggleMute(){ muted=!muted; save.muted=muted; persist(); el('muteBtn').textContent = muted?'🔇':'🔊'; if(typeof music!=='undefined'&&music) music.setMuted(muted); }
+function openHouseMap(){ running=false; ['introScreen','winScreen','finalScreen','startScreen'].forEach(id=>hide(id)); renderHouseMap(); show('mapScreen'); }
 
 // buttons
-el('startBtn').onclick = ()=>{ hide('startScreen'); startLevel(0); };
+el('startBtn').onclick = ()=>{ hide('startScreen'); startLevel(Math.min(save.unlocked, LEVELS.length-1)); };
+el('mapBtn').onclick = openHouseMap;
+el('mapBackBtn').onclick = ()=>{ hide('mapScreen'); show('startScreen'); };
+el('hudMapBtn').onclick = openHouseMap;
 el('introBtn').onclick = beginPlay;
 el('winBtn').onclick = nextLevel;
 el('finalBtn').onclick = ()=>{ hide('finalScreen'); totalSocks=0; startLevel(0); };
 el('resetBtn').onclick = ()=>{ if(!el('introScreen').classList.contains('hidden')) return; restartLevel(); };
 el('muteBtn').onclick = toggleMute;
 
-// boot: show a static first frame behind the start screen
+// boot: restore mute, show a static first frame behind the start screen
+muted = !!save.muted; el('muteBtn').textContent = muted?'🔇':'🔊';
 G = buildLevel(0); render(); updateHUD();
 </script>
 </body>
