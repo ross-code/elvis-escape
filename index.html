@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Elvis Escape: A Husky's Great Escape</title>
+<style>
+  :root{
+    --bg:#1b2430; --panel:#222d3b; --ink:#eef4ff; --muted:#9fb2c9;
+    --accent:#6db7e8; --good:#5fd47a; --warn:#f5c451;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:radial-gradient(1200px 700px at 50% -10%, #2a3a50 0%, var(--bg) 60%);
+    color:var(--ink); font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif;
+    display:flex; flex-direction:column; align-items:center; min-height:100%;
+    overflow-x:hidden; user-select:none;
+  }
+  header.topbar{
+    width:100%; max-width:980px; padding:10px 16px 4px; display:flex;
+    align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  .title{font-size:20px; font-weight:bold; letter-spacing:.3px; display:flex; align-items:center; gap:8px;}
+  .title .paw{filter:drop-shadow(0 1px 0 #0006);}
+  .level-tag{
+    margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    font-size:13px; color:var(--muted);
+  }
+  .chip{background:var(--panel); border:1px solid #ffffff14; padding:4px 10px; border-radius:999px; white-space:nowrap;}
+  .chip b{color:var(--ink);}
+  .chip.lit{color:#0c1a12; background:var(--good); border-color:transparent; font-weight:bold;}
+  .chip.lit.warnlit{background:var(--warn);}
+  #stage{
+    position:relative; width:100%; max-width:980px; margin:6px auto 0;
+    aspect-ratio:24/14; background:#0c1118; border-radius:14px; overflow:hidden;
+    box-shadow:0 18px 50px #0009, inset 0 0 0 2px #ffffff10;
+  }
+  canvas{display:block; width:100%; height:100%; image-rendering:auto;}
+  .overlay{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; text-align:center; gap:14px; padding:24px;
+    background:linear-gradient(180deg,#0b1018e6,#0b1018f2); backdrop-filter:blur(2px);
+    z-index:5;
+  }
+  .overlay.hidden{display:none;}
+  .overlay h1{font-size:clamp(24px,5vw,44px); margin:0; line-height:1.05;}
+  .overlay h2{font-size:clamp(18px,3.4vw,26px); margin:0;}
+  .overlay p{margin:0; max-width:560px; color:var(--muted); font-size:clamp(13px,2.4vw,16px); line-height:1.45;}
+  .overlay .age{color:var(--accent); font-weight:bold; letter-spacing:1px; text-transform:uppercase; font-size:13px;}
+  .btn{
+    cursor:pointer; border:none; border-radius:12px; padding:13px 26px; font-size:17px; font-weight:bold;
+    color:#0c1a2b; background:linear-gradient(180deg,#8fd0f5,#5aa8e0); box-shadow:0 6px 0 #2d6e9c, 0 10px 18px #0006;
+    transition:transform .05s ease, box-shadow .05s ease;
+  }
+  .btn:active{transform:translateY(4px); box-shadow:0 2px 0 #2d6e9c, 0 6px 12px #0006;}
+  .keys{display:flex; gap:18px; flex-wrap:wrap; justify-content:center; color:var(--muted); font-size:13px; margin-top:4px;}
+  .keys kbd{
+    background:var(--panel); border:1px solid #ffffff22; border-bottom-width:3px; border-radius:7px;
+    padding:3px 9px; color:var(--ink); font-family:inherit; font-size:12px; margin:0 2px;
+  }
+  /* mobile controls */
+  #touch{
+    width:100%; max-width:980px; display:none; justify-content:space-between;
+    padding:14px 10px 26px; gap:10px;
+  }
+  #touch.show{display:flex;}
+  .pad{display:flex; gap:10px;}
+  .tbtn{
+    width:74px; height:74px; border-radius:50%; background:var(--panel); border:1px solid #ffffff1f;
+    color:var(--ink); font-size:26px; font-weight:bold; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 5px 0 #0007; touch-action:none;
+  }
+  .tbtn:active{transform:translateY(3px); box-shadow:0 2px 0 #0007; background:#2c3a4d;}
+  .tbtn.jump{background:linear-gradient(180deg,#8fd0f5,#5aa8e0); color:#0c1a2b;}
+  .tbtn.act{background:linear-gradient(180deg,#ffe08a,#f5c451); color:#3a2a06;}
+  footer{color:var(--muted); font-size:12px; padding:8px 0 26px; text-align:center; max-width:600px;}
+  .minibtns{position:absolute; top:10px; right:10px; display:flex; gap:8px; z-index:6;}
+  .mini{cursor:pointer; background:#0f1622cc; border:1px solid #ffffff22; color:var(--ink); border-radius:9px; padding:6px 10px; font-size:13px;}
+  .toast{
+    position:absolute; left:50%; top:14%; transform:translateX(-50%);
+    background:#0f1622e8; border:1px solid #ffffff22; color:var(--ink); padding:8px 16px; border-radius:999px;
+    font-size:14px; z-index:6; opacity:0; transition:opacity .25s, top .25s; pointer-events:none;
+  }
+  .toast.show{opacity:1; top:10%;}
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="title"><span class="paw">🐾</span> Elvis Escape</div>
+    <div class="level-tag">
+      <span class="chip"><b id="hud-room">Living Room</b></span>
+      <span class="chip">Age: <b id="hud-age">3 months</b></span>
+      <span class="chip" id="hud-socks">Socks: <b>0</b></span>
+      <span class="chip" id="hud-plates">Crates: <b>0/0</b></span>
+      <span class="chip" id="hud-lever">Lever: <b>off</b></span>
+      <span class="chip" id="hud-door">Door 🔒</span>
+    </div>
+  </header>
+
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div class="minibtns">
+      <button class="mini" id="muteBtn" title="Mute">🔊</button>
+      <button class="mini" id="resetBtn" title="Restart level (R)">↺ Level</button>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <div class="overlay" id="startScreen">
+      <div class="age">An Action-Adventure Escape Game</div>
+      <h1>Elvis Escape 🐺</h1>
+      <p>You are <b>Elvis</b>, a pure-white Siberian husky and an absolute menace. Every time the humans leave,
+         it's your job to <b>break out of the room</b>. Push things into place, climb, and paw the levers to crack
+         open that sliding door. Grow from a 3-month-old puppy into a master escape artist across 5 rooms.</p>
+      <button class="btn" id="startBtn">Let Elvis loose ▸</button>
+      <div class="keys">
+        <span><kbd>←</kbd><kbd>→</kbd> or <kbd>A</kbd><kbd>D</kbd> move</span>
+        <span><kbd>Space</kbd> / <kbd>↑</kbd> / <kbd>W</kbd> jump</span>
+        <span><kbd>E</kbd> paw lever</span>
+        <span><kbd>R</kbd> restart room</span>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="introScreen">
+      <div class="age" id="intro-age">3 MONTHS OLD</div>
+      <h2 id="intro-title">Room 1: The Living Room</h2>
+      <p id="intro-blurb"></p>
+      <button class="btn" id="introBtn">Start sneaking ▸</button>
+    </div>
+
+    <div class="overlay hidden" id="winScreen">
+      <div class="age">ESCAPED!</div>
+      <h2 id="win-title">Free at last!</h2>
+      <p id="win-blurb"></p>
+      <button class="btn" id="winBtn">Next room ▸</button>
+    </div>
+
+    <div class="overlay hidden" id="finalScreen">
+      <div class="age">🏆 LEGEND</div>
+      <h1>Elvis: Master of Escape</h1>
+      <p id="final-blurb"></p>
+      <button class="btn" id="finalBtn">Play again ▸</button>
+    </div>
+  </div>
+
+  <div id="touch">
+    <div class="pad">
+      <div class="tbtn" data-k="left">◀</div>
+      <div class="tbtn" data-k="right">▶</div>
+    </div>
+    <div class="pad">
+      <div class="tbtn act" data-k="act">E</div>
+      <div class="tbtn jump" data-k="jump">⤒</div>
+    </div>
+  </div>
+
+  <footer>Tip: you can't lift crates, but you can <b>shove</b> them along the floor and <b>stand on them</b> to reach high ledges and levers.</footer>
+
+<script>
+"use strict";
+/* ============================================================
+   ELVIS ESCAPE — side-view puzzle-platformer
+   - Per-pixel AABB physics (stable crate pushing + stacking)
+   - Push crates onto paw-plates / climb to paw levers -> open the sliding door
+   ============================================================ */
+
+const TILE = 40;
+const COLS = 24, ROWS = 14;
+const GRAVITY = 0.8, MOVE = 3.4, JUMP_V = 13, MAX_FALL = 16;
+
+// ---- Level maps -------------------------------------------------
+// '#':wall  '=':ledge/furniture  '@':Elvis  'C':crate  'P':paw-plate
+// 'L':lever 'D':sliding door  'S':sock(collectible)  '.':empty
+const LEVELS = [
+  {
+    room:"The Living Room", age:"3 months", theme:"living",
+    blurb:"The humans grabbed their keys and shut you in the lounge. Trot over to the funny wall handle and give it a good paw, then strut out. (Bonus: there's a sock on the couch.)",
+    win:"You headbutted the lever and the door slid open. The house is YOURS.",
+    map:[
+      "########################",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#........S.............#",
+      "#......====...........D#",
+      "#..@.............L....D#",
+      "########################",
+    ],
+  },
+  {
+    room:"The Kitchen", age:"5 months", theme:"kitchen",
+    blurb:"Pizza-box o'clock and you're trapped by the fridge. That lever is way up on the shelf. Shove the stool under it, hop up, and paw it open.",
+    win:"Stool + a perfect husky leap = freedom. Onward to the yard!",
+    map:[
+      "########################",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#..............L.......#",
+      "#...........======.....#",
+      "#.....................D#",
+      "#..@.....C............D#",
+      "########################",
+    ],
+  },
+  {
+    room:"The Bedroom", age:"8 months", theme:"bedroom",
+    blurb:"Big-dog energy now. Push the toy box onto the paw-plate to unlock the sliding door. (There's a sock up on the shelf if you fancy a climb.)",
+    win:"Plate pressed, door open, sock acquired. Textbook mischief.",
+    map:[
+      "########################",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#....S.................#",
+      "#..===.................#",
+      "#.....................D#",
+      "#.@...C.....C....P....D#",
+      "########################",
+    ],
+  },
+  {
+    room:"The Garage", age:"1 year", theme:"garage",
+    blurb:"Double trouble: the sliding door needs BOTH a crate on the plate AND the high lever flipped. Climb the shelves to reach the switch.",
+    win:"Plate + lever, both nailed. The garage never stood a chance.",
+    map:[
+      "########################",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#...........L..........#",
+      "#..........====........#",
+      "#......................#",
+      "#.....====............D#",
+      "#.@..............C..P.D#",
+      "########################",
+    ],
+  },
+  {
+    room:"The Sliding Glass Door", age:"1.5 years", theme:"backyard",
+    blurb:"The final boss: the big backyard slider. Jam BOTH crates onto BOTH paw-plates and flip the lever on the ledge. Grab the socks while you're at it, legend.",
+    win:"Two crates, two plates, one lever, and a fully grown husky strolls into the sunshine.",
+    map:[
+      "########################",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#.........S............#",
+      "#......................#",
+      "#......................#",
+      "#....................S.#",
+      "#......................#",
+      "#...L.................D#",
+      "#..===................D#",
+      "#.@.....C..C..P..P....D#",
+      "########################",
+    ],
+  },
+];
+
+// ---- Canvas -----------------------------------------------------
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+function fitCanvas(){
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  canvas.width = COLS*TILE*dpr;
+  canvas.height = ROWS*TILE*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+fitCanvas();
+window.addEventListener('resize', fitCanvas);
+
+// ---- Audio (tiny WebAudio blips) --------------------------------
+let muted = false; let actx = null;
+function beep(freq, dur=0.08, type='sine', vol=0.12, slideTo=null){
+  if(muted) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, actx.currentTime+dur);
+    g.gain.value = vol; g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }catch(e){}
+}
+const sfx = {
+  jump:()=>beep(420,0.12,'square',0.08,720),
+  land:()=>beep(180,0.05,'sine',0.05),
+  collect:()=>{beep(660,0.07,'triangle',0.12,990); setTimeout(()=>beep(990,0.09,'triangle',0.10),70);},
+  unlock:()=>{beep(523,0.1,'sine',0.12); setTimeout(()=>beep(784,0.16,'sine',0.12),90);},
+  push:()=>beep(120,0.04,'sawtooth',0.04),
+  win:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.18,'triangle',0.12),i*120));},
+};
+
+// ---- Game state -------------------------------------------------
+let levelIndex = 0;
+let G = null;       // current level runtime
+let running = false;
+let totalSocks = 0;
+const keys = { left:false, right:false, jump:false, act:false };
+let jumpBuffer = 0, coyote = 0, prevJump = false;
+let animTime = 0, legPhase = 0;
+let particles = [];
+
+function aabb(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
+
+function spawnBurst(x,y,color,n){
+  n=n||10;
+  for(let i=0;i<n;i++){
+    const a=(i/n)*Math.PI*2 + Math.random()*0.6, s=1.2+Math.random()*2.6;
+    particles.push({x,y,vx:Math.cos(a)*s, vy:Math.sin(a)*s-1.4, life:1, color});
+  }
+  if(particles.length>240) particles.splice(0, particles.length-240);
+}
+
+function buildLevel(idx){
+  const L = LEVELS[idx];
+  particles.length = 0;
+  // validate map
+  L.map.forEach((r,i)=>{ if(r.length!==COLS) console.error(`Level ${idx} row ${i} length ${r.length} (expected ${COLS})`); });
+  const solids = []; const tiles = [];
+  const crates=[], plates=[], levers=[], socks=[]; let doorCells=[]; let start={x:60,y:60};
+  for(let y=0;y<ROWS;y++){
+    solids[y]=[]; tiles[y]=[];
+    for(let x=0;x<COLS;x++){
+      const ch = L.map[y][x];
+      tiles[y][x] = (ch==='#'||ch==='=') ? ch : '.';
+      solids[y][x] = (ch==='#'||ch==='=');
+      const px=x*TILE, py=y*TILE;
+      if(ch==='@') start={x:px+5,y:py+TILE-40};
+      else if(ch==='C') crates.push({x:px,y:py,w:TILE,h:TILE,vy:0,onGround:false});
+      else if(ch==='P') plates.push({x:px+4,y:py+TILE-12,w:TILE-8,h:12,tx:x,ty:y,pressed:false});
+      else if(ch==='L') levers.push({x:px,y:py,w:TILE,h:TILE,on:false});
+      else if(ch==='S') socks.push({x:px+8,y:py+10,w:TILE-16,h:TILE-16,got:false});
+      else if(ch==='D') doorCells.push({x,y});
+    }
+  }
+  // door bounding box
+  let dminx=99,dminy=99,dmaxx=-1,dmaxy=-1;
+  doorCells.forEach(c=>{dminx=Math.min(dminx,c.x);dminy=Math.min(dminy,c.y);dmaxx=Math.max(dmaxx,c.x);dmaxy=Math.max(dmaxy,c.y);});
+  const door = {x:dminx*TILE, y:dminy*TILE, w:(dmaxx-dminx+1)*TILE, h:(dmaxy-dminy+1)*TILE, open:false};
+  return {
+    L, solids, tiles, crates, plates, levers, socks, door,
+    player:{x:start.x, y:start.y, w:30, h:40, vx:0, vy:0, onGround:false, facing:1,
+            tap:{active:false, t:0, dur:30, hitFrame:15, hit:false, target:null}},
+    socksGot:0, leverPrompt:false, doorWasOpen:false,
+  };
+}
+
+// solid tile test (includes closed door)
+function solidAt(px,py){
+  const cx=Math.floor(px/TILE), cy=Math.floor(py/TILE);
+  if(cx<0||cy<0||cx>=COLS||cy>=ROWS) return true;
+  if(G.solids[cy][cx]) return true;
+  // closed door is solid
+  if(!G.door.open && px>=G.door.x && px<G.door.x+G.door.w && py>=G.door.y && py<G.door.y+G.door.h) return true;
+  return false;
+}
+function rectHitsStatic(r){
+  const x0=Math.floor(r.x/TILE), x1=Math.floor((r.x+r.w-0.01)/TILE);
+  const y0=Math.floor(r.y/TILE), y1=Math.floor((r.y+r.h-0.01)/TILE);
+  for(let cy=y0;cy<=y1;cy++) for(let cx=x0;cx<=x1;cx++){
+    if(cx<0||cy<0||cx>=COLS||cy>=ROWS) return true;
+    if(G.solids[cy][cx]) return true;
+  }
+  // closed door
+  if(!G.door.open && aabb(r,G.door)) return true;
+  return false;
+}
+function crateAtRect(r, except){
+  for(let i=0;i<G.crates.length;i++){ if(i===except) continue; if(aabb(r,G.crates[i])) return i; }
+  return -1;
+}
+
+// recursive: can crate i shift by (dx) 1px, pushing any crates it touches?
+function canShiftCrate(i, dx, moving){
+  moving.add(i);
+  const c=G.crates[i]; const r={x:c.x+dx,y:c.y,w:c.w,h:c.h};
+  if(rectHitsStatic(r)) return false;
+  if(aabb(r, G.player)) return false;
+  for(let j=0;j<G.crates.length;j++){
+    if(j===i || moving.has(j)) continue;
+    if(aabb(r,G.crates[j])){ if(!canShiftCrate(j,dx,moving)) return false; }
+  }
+  return true;
+}
+
+function update(){
+  if(!running) return;
+  const p = G.player;
+
+  // ---- paw-tap animation: Elvis pauses, reaches out, and taps the lever down
+  if(p.tap.active){
+    p.tap.t++;
+    const lv=p.tap.target;
+    if(lv) p.facing = (lv.x+lv.w/2) >= (p.x+p.w/2) ? 1 : -1;
+    if(!p.tap.hit && p.tap.t>=p.tap.hitFrame){
+      p.tap.hit=true;
+      if(lv && !lv.on){
+        lv.on=true; sfx.unlock();
+        flash("Tapped it down! 🐾");
+        spawnBurst(lv.x+lv.w/2, lv.y+TILE-26, '#5fd47a', 14);
+      }
+    }
+    if(p.tap.t>=p.tap.dur){ p.tap.active=false; p.tap.target=null; }
+  }
+
+  // ---- input -> horizontal velocity (locked while tapping)
+  p.vx = 0;
+  if(!p.tap.active){
+    if(keys.left)  { p.vx = -MOVE; p.facing = -1; }
+    if(keys.right) { p.vx =  MOVE; p.facing =  1; }
+  }
+
+  // ---- jump (with coyote + buffer)
+  p.vy += GRAVITY; if(p.vy>MAX_FALL) p.vy=MAX_FALL;
+  if(keys.jump && !prevJump) jumpBuffer = 8;
+  prevJump = keys.jump;
+  if(jumpBuffer>0) jumpBuffer--;
+  if(coyote>0) coyote--;
+  if(!p.tap.active && jumpBuffer>0 && (p.onGround || coyote>0)){
+    p.vy = -JUMP_V; p.onGround=false; coyote=0; jumpBuffer=0; sfx.jump();
+  }
+
+  // ---- horizontal move (per-pixel, with crate pushing)
+  let mx = Math.round(p.vx); const sx = Math.sign(mx);
+  for(let s=0;s<Math.abs(mx);s++){
+    const r={x:p.x+sx,y:p.y,w:p.w,h:p.h};
+    if(rectHitsStatic(r)) break;
+    const ci = crateAtRect(r,-1);
+    if(ci>=0){
+      if(p.onGround){
+        const moving=new Set();
+        if(canShiftCrate(ci,sx,moving)){
+          moving.forEach(k=>G.crates[k].x+=sx);
+          p.x+=sx; if(s%6===0) sfx.push();
+        } else break;
+      } else break;
+    } else p.x+=sx;
+  }
+
+  // ---- crates gravity (bottom-first so stacks settle)
+  const order=[...G.crates.keys()].sort((a,b)=>G.crates[b].y-G.crates[a].y);
+  for(const i of order){
+    const c=G.crates[i]; c.vy+=GRAVITY; if(c.vy>MAX_FALL)c.vy=MAX_FALL;
+    let my=Math.round(c.vy); const sy=Math.sign(my)||1;
+    for(let s=0;s<Math.abs(my);s++){
+      const r={x:c.x,y:c.y+sy,w:c.w,h:c.h};
+      if(rectHitsStatic(r)){ c.vy=0; break; }
+      if(crateAtRect(r,i)>=0){ c.vy=0; break; }
+      if(sy>0 && aabb(r,p)){ c.vy=0; break; } // rest on dog's head, rare
+      c.y+=sy;
+    }
+  }
+
+  // ---- player vertical (gravity / jump)
+  let my = Math.round(p.vy); const sy=Math.sign(my)||1;
+  let landed=false;
+  p.onGround=false;
+  for(let s=0;s<Math.abs(my);s++){
+    const r={x:p.x,y:p.y+sy,w:p.w,h:p.h};
+    if(rectHitsStatic(r)){ if(sy>0){p.onGround=true; landed=true;} p.vy=0; break; }
+    const ci=crateAtRect(r,-1);
+    if(ci>=0){ if(sy>0){p.onGround=true; landed=true;} p.vy=0; break; }
+    p.y+=sy;
+  }
+  if(p.onGround) coyote=6;
+  if(landed && Math.abs(my)>6) sfx.land();
+
+  // ---- plates pressed by crates
+  G.plates.forEach(pl=>{
+    let pressed=false;
+    for(const c of G.crates){ if(aabb(c,pl)){pressed=true;break;} }
+    pl.pressed=pressed;
+  });
+
+  // ---- lever interaction: pressing E starts the paw-tap animation
+  G.leverPrompt=false;
+  G.levers.forEach(lv=>{
+    if(lv.on) return;
+    const near={x:lv.x-12,y:lv.y-10,w:lv.w+24,h:lv.h+18};
+    if(aabb(p,near)){
+      if(!p.tap.active) G.leverPrompt=true;
+      if(keys.act && !p.tap.active && p.onGround){
+        p.tap.active=true; p.tap.t=0; p.tap.dur=30; p.tap.hitFrame=15; p.tap.hit=false; p.tap.target=lv;
+        p.facing = (lv.x+lv.w/2) >= (p.x+p.w/2) ? 1 : -1;
+      }
+    }
+  });
+
+  // ---- socks
+  G.socks.forEach(s=>{
+    if(!s.got && aabb(p,s)){ s.got=true; G.socksGot++; totalSocks++; sfx.collect(); flash("Got a sock! 🧦"); }
+  });
+
+  // ---- door open condition: all plates pressed AND all levers on
+  const platesOK = G.plates.every(pl=>pl.pressed);
+  const leversOK = G.levers.every(lv=>lv.on);
+  G.door.open = platesOK && leversOK;
+  if(G.door.open && !G.doorWasOpen){ G.doorWasOpen=true; sfx.unlock(); flash("The sliding door clicks open! 🚪"); }
+  if(!G.door.open) G.doorWasOpen=false;
+
+  // ---- win: reach door while open
+  if(G.door.open && aabb(p, {x:G.door.x+4,y:G.door.y,w:G.door.w-4,h:G.door.h})){
+    winLevel();
+  }
+
+  // particles
+  for(let i=particles.length-1;i>=0;i--){
+    const q=particles[i]; q.x+=q.vx; q.y+=q.vy; q.vy+=0.16; q.life-=0.04;
+    if(q.life<=0) particles.splice(i,1);
+  }
+
+  // animation phase
+  if(Math.abs(p.vx)>0.1 && p.onGround) legPhase += 0.32; else legPhase += 0.05;
+  animTime += 1;
+  updateHUD();
+}
+
+// ===================== RENDER =====================
+const THEMES = {
+  living:  {wallA:'#6b4a36',wallB:'#553a2a',floor:'#7a5740',bg1:'#caa37a',bg2:'#9c7553',accent:'#d98c5f'},
+  kitchen: {wallA:'#5a6b74',wallB:'#465058',floor:'#788790',bg1:'#bcd2d8',bg2:'#8aa3ac',accent:'#7fc8c0'},
+  bedroom: {wallA:'#5b5680',wallB:'#454066',floor:'#6f6896',bg1:'#b7aede',bg2:'#8a82bd',accent:'#c79be0'},
+  garage:  {wallA:'#55595e',wallB:'#3f4348',floor:'#6a6e74',bg1:'#9aa1a8',bg2:'#70767d',accent:'#f0a93b'},
+  backyard:{wallA:'#4f6b50',wallB:'#3b513c',floor:'#6f8c6a',bg1:'#bfe3c4',bg2:'#86c2e8',accent:'#ffd56b'},
+};
+
+function render(){
+  const W=COLS*TILE, H=ROWS*TILE;
+  const th = THEMES[G.L.theme] || THEMES.living;
+  // background
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,th.bg1); g.addColorStop(1,th.bg2);
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  // soft wallpaper stripes
+  ctx.globalAlpha=0.06; ctx.fillStyle='#000';
+  for(let x=0;x<W;x+=64) ctx.fillRect(x,0,32,H);
+  ctx.globalAlpha=1;
+
+  // daylight glow behind door if open
+  if(G.door.open){
+    const dg=ctx.createRadialGradient(G.door.x+G.door.w/2,G.door.y+G.door.h/2,4,G.door.x+G.door.w/2,G.door.y+G.door.h/2,90);
+    dg.addColorStop(0,'#fff7d6'); dg.addColorStop(1,'rgba(255,247,214,0)');
+    ctx.fillStyle=dg; ctx.fillRect(G.door.x-50,0,G.door.w+100,H);
+  }
+
+  // tiles
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    const t=G.tiles[y][x]; if(t==='.') continue;
+    const px=x*TILE, py=y*TILE;
+    if(t==='#'){
+      ctx.fillStyle=th.wallB; ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillStyle=th.wallA; ctx.fillRect(px+2,py+2,TILE-4,TILE-4);
+      ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fillRect(px+2,py+2,TILE-4,4);
+    } else if(t==='='){ // ledge / furniture
+      roundRect(px+1,py+2,TILE-2,TILE-6,6); ctx.fillStyle=th.accent; ctx.fill();
+      ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(px+1,py+TILE-8,TILE-2,4);
+      ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.fillRect(px+3,py+4,TILE-6,3);
+    }
+  }
+
+  // plates
+  G.plates.forEach(pl=>{
+    const cx=pl.tx*TILE, cy=pl.ty*TILE;
+    ctx.fillStyle = pl.pressed ? 'rgba(95,212,122,0.30)' : 'rgba(0,0,0,0.18)';
+    roundRect(cx+5, cy+TILE-14, TILE-10, 12, 5); ctx.fill();
+    // paw mark
+    ctx.fillStyle = pl.pressed ? '#5fd47a' : '#cdd9e6';
+    drawPaw(cx+TILE/2, cy+TILE-8, 7);
+  });
+
+  // levers
+  G.levers.forEach(lv=>{
+    const bx=lv.x+TILE/2, by=lv.y+TILE-6;
+    ctx.fillStyle='#33404f'; roundRect(bx-9,by-22,18,22,4); ctx.fill();
+    ctx.strokeStyle = lv.on ? '#5fd47a' : '#f5c451';
+    ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(bx,by-6);
+    ctx.lineTo(bx + (lv.on? 9 : -9), by-24); ctx.stroke();
+    ctx.fillStyle = lv.on ? '#5fd47a' : '#f5c451';
+    ctx.beginPath(); ctx.arc(bx + (lv.on?9:-9), by-24, 5, 0, 7); ctx.fill();
+    if(!lv.on && G.leverPrompt){
+      ctx.fillStyle='#0c1118cc'; roundRect(bx-26,by-52,52,20,6); ctx.fill();
+      ctx.fillStyle='#fff'; ctx.font='bold 12px Trebuchet MS'; ctx.textAlign='center';
+      ctx.fillText('E to paw', bx, by-38);
+    }
+  });
+
+  // door
+  drawDoor(th);
+
+  // crates
+  G.crates.forEach(c=>drawCrate(c, th));
+
+  // socks
+  G.socks.forEach(s=>{ if(!s.got) drawSock(s); });
+
+  // Elvis
+  drawElvis(G.player);
+
+  // particles (sparkles)
+  for(const q of particles){
+    ctx.globalAlpha=Math.max(0,q.life);
+    ctx.fillStyle=q.color;
+    ctx.beginPath(); ctx.arc(q.x,q.y, 2+(1-q.life)*1.6, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function drawPaw(cx,cy,r){
+  ctx.beginPath(); ctx.ellipse(cx,cy+r*0.4,r*0.9,r*0.7,0,0,7); ctx.fill();
+  for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.arc(cx+i*r*0.7, cy-r*0.4, r*0.32,0,7); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(cx+r*1.1, cy-r*0.05, r*0.28,0,7); ctx.fill();
+}
+function drawSock(s){
+  const cx=s.x+s.w/2, cy=s.y+s.h/2 + Math.sin(animTime*0.08)*3;
+  ctx.save(); ctx.translate(cx,cy); ctx.rotate(-0.3);
+  ctx.fillStyle='#ffffff';
+  roundRect(-5,-12,10,16,5); ctx.fill();        // leg
+  roundRect(-5,2,18,9,5); ctx.fill();            // foot
+  ctx.fillStyle='#e44b6d'; ctx.fillRect(-5,-12,10,4); // stripe
+  ctx.fillStyle='#6db7e8'; ctx.fillRect(-5,-6,10,3);
+  ctx.restore();
+}
+function drawCrate(c, th){
+  ctx.save();
+  // body
+  ctx.fillStyle='#b07a45'; roundRect(c.x+2,c.y+2,c.w-4,c.h-4,6); ctx.fill();
+  ctx.fillStyle='#caa066'; roundRect(c.x+5,c.y+5,c.w-10,c.h-10,4); ctx.fill();
+  // planks
+  ctx.strokeStyle='rgba(90,55,25,0.6)'; ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(c.x+5,c.y+c.h/2); ctx.lineTo(c.x+c.w-5,c.y+c.h/2);
+  ctx.moveTo(c.x+5,c.y+5); ctx.lineTo(c.x+c.w-5,c.y+c.h-5);
+  ctx.moveTo(c.x+c.w-5,c.y+5); ctx.lineTo(c.x+5,c.y+c.h-5);
+  ctx.stroke();
+  ctx.restore();
+}
+function drawDoor(th){
+  const d=G.door;
+  // frame
+  ctx.fillStyle='#2c3744'; ctx.fillRect(d.x-4,d.y-4,d.w+8,d.h+8);
+  // track behind = light
+  ctx.fillStyle = G.door.open ? '#fdf3c9' : '#5a6b7a';
+  ctx.fillRect(d.x,d.y,d.w,d.h);
+  // sliding glass panel (slides right when open)
+  const slide = G.door.open ? d.w*0.82 : 0;
+  ctx.fillStyle='rgba(140,190,225,0.55)';
+  ctx.fillRect(d.x+slide, d.y, d.w*0.9, d.h);
+  ctx.strokeStyle='#9fc4dd'; ctx.lineWidth=3; ctx.strokeRect(d.x+slide, d.y, d.w*0.9, d.h);
+  // glass shine
+  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(d.x+slide+6,d.y+6); ctx.lineTo(d.x+slide+6,d.y+d.h-6); ctx.stroke();
+  // handle / arrow
+  ctx.fillStyle = G.door.open ? '#5fd47a' : '#f5c451';
+  ctx.fillRect(d.x+slide+d.w*0.9-8, d.y+d.h/2-12, 4, 24);
+  // lock badge when closed
+  if(!G.door.open){
+    ctx.fillStyle='#0c1118cc'; ctx.beginPath(); ctx.arc(d.x+d.w/2,d.y+12,11,0,7); ctx.fill();
+    ctx.fillStyle='#f5c451'; ctx.font='14px Trebuchet MS'; ctx.textAlign='center'; ctx.fillText('🔒',d.x+d.w/2,d.y+17);
+  }
+}
+
+// ---------- Elvis the husky ----------
+function drawElvis(p){
+  const cx=p.x+p.w/2, feet=p.y+p.h;
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(cx, feet-2, 22, 6, 0,0,7); ctx.fill();
+
+  ctx.save();
+  ctx.translate(cx, feet);
+  ctx.scale(p.facing, 1);
+
+  const moving = Math.abs(p.vx)>0.1 && p.onGround;
+  const air = !p.onGround;
+  const bob = moving ? Math.sin(legPhase)*1.2 : Math.sin(animTime*0.05)*0.8;
+
+  // ---- paw-tap reach pose (windup -> reach up -> tap down -> recover) ----
+  const tap = p.tap || {active:false};
+  let reachUp=0, pawDown=0, rear=0;
+  if(tap.active){
+    const t=tap.t;
+    if(t<=10){ reachUp=t/10; rear=reachUp; }
+    else if(t<=15){ reachUp=1; rear=1; pawDown=(t-10)/5; }
+    else if(t<=21){ reachUp=1; rear=1; pawDown=1; }
+    else { const k=Math.max(0,(30-t)/9); reachUp=k; rear=k; pawDown=k; }
+  }
+
+  const W='#ffffff', SH='#e3ecf5', PINK='#f5a6b8', NOSE='#3a3a44', EYE='#2f9bd8';
+
+  // ----- tail (back, left side) -----
+  ctx.save();
+  ctx.translate(-19,-22+bob);
+  const tw = moving ? Math.sin(legPhase)*0.25 : Math.sin(animTime*0.06)*0.15;
+  ctx.rotate(-0.5+tw);
+  ctx.fillStyle=W;
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.quadraticCurveTo(-16,-6,-14,-22);
+  ctx.quadraticCurveTo(-12,-30,-2,-26);
+  ctx.quadraticCurveTo(-8,-18,-2,-6);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle=SH;
+  ctx.beginPath(); ctx.ellipse(-9,-20,4,9,0.4,0,7); ctx.fill();
+  ctx.restore();
+
+  // ----- back legs -----
+  const swing = moving ? Math.sin(legPhase) : 0;
+  drawLeg(-12, feetLocal(0), air? -6: swing*7, W, SH, air);
+  drawLeg( 10, feetLocal(0), air? -6:-swing*7, W, SH, air);
+
+  // ----- body -----
+  ctx.fillStyle=W;
+  ctx.beginPath(); ctx.ellipse(-2,-22+bob,21,15,0,0,7); ctx.fill();
+  // belly shade
+  ctx.fillStyle=SH;
+  ctx.beginPath(); ctx.ellipse(-2,-15+bob,18,8,0,0,Math.PI); ctx.fill();
+  // fluffy chest
+  ctx.fillStyle=W;
+  ctx.beginPath(); ctx.ellipse(13,-18+bob,9,11,0,0,7); ctx.fill();
+
+  // ----- front legs (the forward paw reaches out to tap the lever) -----
+  drawLeg(6, feetLocal(0), air? 8: -swing*7, W, SH, air);
+  if(reachUp>0.15){
+    const sx=14, sy=-26+bob - rear*5;                 // shoulder
+    const ex=sx + 8 + reachUp*18;                     // reach forward
+    const ey=sy - reachUp*20 + pawDown*26;            // lift, then tap down
+    ctx.strokeStyle=W; ctx.lineWidth=7; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.quadraticCurveTo(sx+10,sy-4,ex,ey); ctx.stroke();
+    ctx.fillStyle=SH; ctx.beginPath(); ctx.arc(ex,ey,4.6,0,7); ctx.fill();
+  } else {
+    drawLeg(16,feetLocal(0), air? 8:  swing*7, W, SH, air);
+  }
+
+  // ----- head ----- (lifts and looks up while reaching for the lever)
+  ctx.save();
+  ctx.translate(17,-30+bob - rear*7);
+  ctx.rotate(-rear*0.15);
+  // ear
+  ctx.fillStyle=W;
+  ctx.beginPath(); ctx.moveTo(-6,-8); ctx.lineTo(-12,-22); ctx.lineTo(2,-12); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=PINK;
+  ctx.beginPath(); ctx.moveTo(-5,-10); ctx.lineTo(-8,-18); ctx.lineTo(-1,-12); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=W;
+  ctx.beginPath(); ctx.moveTo(5,-9); ctx.lineTo(2,-23); ctx.lineTo(12,-11); ctx.closePath(); ctx.fill();
+  // head
+  ctx.fillStyle=W; ctx.beginPath(); ctx.arc(2,-2,12,0,7); ctx.fill();
+  // snout
+  ctx.fillStyle=W;
+  ctx.beginPath(); ctx.ellipse(13,2,9,6,0,0,7); ctx.fill();
+  ctx.fillStyle=SH;
+  ctx.beginPath(); ctx.ellipse(13,5,8,3,0,0,7); ctx.fill();
+  // tongue (panting)
+  ctx.fillStyle=PINK;
+  roundRect(16,6,6,9,3); ctx.fill();
+  ctx.fillStyle='#e8849b'; ctx.fillRect(18.5,8,1.5,6);
+  // nose
+  ctx.fillStyle=NOSE; ctx.beginPath(); ctx.ellipse(20,1,3,2.4,0,0,7); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(19,0,0.9,0,7); ctx.fill();
+  // blue eye
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(6,-3,3.6,0,7); ctx.fill();
+  ctx.fillStyle=EYE; ctx.beginPath(); ctx.arc(6.6,-3,2.5,0,7); ctx.fill();
+  ctx.fillStyle=NOSE; ctx.beginPath(); ctx.arc(7,-3,1.1,0,7); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(5.6,-4,0.9,0,7); ctx.fill();
+  ctx.restore();
+
+  ctx.restore();
+
+  function feetLocal(){ return 0; }
+}
+function drawLeg(lx, base, off, W, SH, air){
+  ctx.save();
+  ctx.fillStyle=W;
+  const topY=-14, len=14;
+  ctx.save();
+  ctx.translate(lx, topY);
+  ctx.rotate(off*0.018);
+  roundRect(-3.5,0,7,len+ (air?-2:0),3); ctx.fill();
+  // paw
+  ctx.fillStyle=SH; roundRect(-3.5,len-4+(air?-2:0),8,4,2); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+// ===================== LOOP =====================
+let acc=0, last=0;
+function loop(ts){
+  if(!last) last=ts;
+  let dt=(ts-last)/1000; last=ts; if(dt>0.1)dt=0.1;
+  acc+=dt;
+  const step=1/60;
+  let guard=0;
+  while(acc>=step && guard<5){ update(); acc-=step; guard++; }
+  if(G) render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ===================== HUD / FLOW =====================
+function updateHUD(){
+  document.getElementById('hud-room').textContent = G.L.room;
+  document.getElementById('hud-age').textContent = G.L.age;
+  document.getElementById('hud-socks').innerHTML = 'Socks: <b>'+totalSocks+'</b>';
+  const pl = document.getElementById('hud-plates');
+  if(G.plates.length){
+    const n=G.plates.filter(p=>p.pressed).length;
+    pl.style.display=''; pl.innerHTML='Crates: <b>'+n+'/'+G.plates.length+'</b>';
+    pl.classList.toggle('lit', n===G.plates.length);
+  } else pl.style.display='none';
+  const lv=document.getElementById('hud-lever');
+  if(G.levers.length){
+    const on=G.levers.every(l=>l.on);
+    lv.style.display=''; lv.innerHTML='Lever: <b>'+(on?'ON':'off')+'</b>';
+    lv.classList.toggle('lit', on); lv.classList.add('warnlit');
+  } else lv.style.display='none';
+  const d=document.getElementById('hud-door');
+  d.textContent = G.door.open ? 'Door 🔓 OPEN' : 'Door 🔒';
+  d.classList.toggle('lit', G.door.open);
+}
+
+let toastT=null;
+function flash(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1500);
+}
+
+const el = id=>document.getElementById(id);
+function show(id){ el(id).classList.remove('hidden'); }
+function hide(id){ el(id).classList.add('hidden'); }
+
+function startLevel(idx){
+  levelIndex=idx; G=buildLevel(idx); running=false;
+  el('intro-age').textContent = G.L.age.toUpperCase()+' OLD';
+  el('intro-title').textContent = 'Room '+(idx+1)+': '+G.L.room;
+  el('intro-blurb').textContent = G.L.blurb;
+  show('introScreen');
+  render(); updateHUD();
+}
+function beginPlay(){ hide('introScreen'); running=true; if(actx&&actx.state==='suspended')actx.resume(); }
+
+function winLevel(){
+  if(!running) return;
+  running=false; sfx.win();
+  el('win-title').textContent = 'Escaped the '+G.L.room+'!';
+  el('win-blurb').textContent = G.L.win + (G.socksGot? '  (+'+G.socksGot+' sock'+(G.socksGot>1?'s':'')+' nabbed)':'');
+  show('winScreen');
+}
+function nextLevel(){
+  hide('winScreen');
+  if(levelIndex+1 < LEVELS.length) startLevel(levelIndex+1);
+  else{
+    el('final-blurb').textContent = 'From a 3-month-old fluffball to a fully grown Siberian husky, Elvis cracked every room in the house. Total socks stolen: '+totalSocks+'. Nobody can keep this dog contained. 🐺🧦';
+    show('finalScreen');
+  }
+}
+
+// ===================== INPUT =====================
+const keyMap = {
+  ArrowLeft:'left', KeyA:'left',
+  ArrowRight:'right', KeyD:'right',
+  ArrowUp:'jump', KeyW:'jump', Space:'jump',
+  KeyE:'act',
+};
+window.addEventListener('keydown', e=>{
+  if(e.code in keyMap){ keys[keyMap[e.code]]=true; e.preventDefault(); }
+  if(e.code==='KeyR' && (running || el('introScreen').classList.contains('hidden'))) restartLevel();
+  if(e.code==='KeyM') toggleMute();
+});
+window.addEventListener('keyup', e=>{ if(e.code in keyMap){ keys[keyMap[e.code]]=false; e.preventDefault(); } });
+
+// touch
+document.querySelectorAll('#touch .tbtn').forEach(b=>{
+  const k=b.dataset.k;
+  const on=ev=>{ev.preventDefault(); keys[k]=true;};
+  const off=ev=>{ev.preventDefault(); keys[k]=false;};
+  b.addEventListener('touchstart',on,{passive:false});
+  b.addEventListener('touchend',off,{passive:false});
+  b.addEventListener('touchcancel',off,{passive:false});
+  b.addEventListener('mousedown',on); b.addEventListener('mouseup',off); b.addEventListener('mouseleave',off);
+});
+if('ontouchstart' in window) document.getElementById('touch').classList.add('show');
+
+function restartLevel(){ const i=levelIndex; G=buildLevel(i); running=true; flash('Room reset ↺'); }
+function toggleMute(){ muted=!muted; el('muteBtn').textContent = muted?'🔇':'🔊'; }
+
+// buttons
+el('startBtn').onclick = ()=>{ hide('startScreen'); startLevel(0); };
+el('introBtn').onclick = beginPlay;
+el('winBtn').onclick = nextLevel;
+el('finalBtn').onclick = ()=>{ hide('finalScreen'); totalSocks=0; startLevel(0); };
+el('resetBtn').onclick = ()=>{ if(!el('introScreen').classList.contains('hidden')) return; restartLevel(); };
+el('muteBtn').onclick = toggleMute;
+
+// boot: show a static first frame behind the start screen
+G = buildLevel(0); render(); updateHUD();
+</script>
+</body>
+</html>
