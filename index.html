@@ -175,7 +175,7 @@ const LEVELS = [
   {
     room:"The Living Room", age:"3 months", theme:"living",
     blurb:"The humans grabbed their keys and shut you in the lounge. Trot over to the funny wall handle and give it a good paw, then strut out. (Bonus: there's a sock on the couch.)",
-    win:"You headbutted the lever and the door slid open. The house is YOURS.",
+    win:"You pawed the lever and the door slid open. The house is YOURS.",
     map:[
       "########################",
       "#......................#",
@@ -312,6 +312,7 @@ const sfx = {
   unlock:()=>{beep(523,0.1,'sine',0.12); setTimeout(()=>beep(784,0.16,'sine',0.12),90);},
   push:()=>beep(120,0.04,'sawtooth',0.04),
   win:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.18,'triangle',0.12),i*120));},
+  howl:()=>{ beep(300,0.26,'sawtooth',0.09,470); setTimeout(()=>beep(480,0.55,'sawtooth',0.10,560),240); setTimeout(()=>beep(560,0.5,'sawtooth',0.09,360),780); },
 };
 
 // ---- Game state -------------------------------------------------
@@ -323,6 +324,8 @@ const keys = { left:false, right:false, jump:false, act:false };
 let jumpBuffer = 0, coyote = 0, prevJump = false;
 let animTime = 0, legPhase = 0;
 let particles = [];
+let celebrate = { active:false, t:0, dur:140, baseX:0, baseY:0 };
+const CELEB = { flipStart:42, landFrame:84 };
 
 function aabb(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
 
@@ -338,6 +341,7 @@ function spawnBurst(x,y,color,n){
 function buildLevel(idx){
   const L = LEVELS[idx];
   particles.length = 0;
+  celebrate.active = false; celebrate.t = 0;
   // validate map
   L.map.forEach((r,i)=>{ if(r.length!==COLS) console.error(`Level ${idx} row ${i} length ${r.length} (expected ${COLS})`); });
   const solids = []; const tiles = [];
@@ -410,6 +414,21 @@ function canShiftCrate(i, dx, moving){
 function update(){
   if(!running) return;
   const p = G.player;
+
+  // ---- escape celebration: howl, backflip, tail wag — then the win screen
+  if(celebrate.active){
+    celebrate.t++;
+    if(celebrate.t===2) sfx.howl();
+    if(celebrate.t===CELEB.flipStart) sfx.jump();
+    if(celebrate.t===CELEB.landFrame){ sfx.land(); spawnBurst(p.x+p.w/2, p.y+p.h, '#ffd56b', 18); }
+    for(let i=particles.length-1;i>=0;i--){
+      const q=particles[i]; q.x+=q.vx; q.y+=q.vy; q.vy+=0.16; q.life-=0.04;
+      if(q.life<=0) particles.splice(i,1);
+    }
+    animTime++;
+    if(celebrate.t>=celebrate.dur){ celebrate.active=false; winLevel(); }
+    return;
+  }
 
   // ---- paw-tap animation: Elvis pauses, reaches out, and taps the lever down
   if(p.tap.active){
@@ -522,9 +541,9 @@ function update(){
   if(G.door.open && !G.doorWasOpen){ G.doorWasOpen=true; sfx.unlock(); flash("The sliding door clicks open! 🚪"); }
   if(!G.door.open) G.doorWasOpen=false;
 
-  // ---- win: reach door while open
-  if(G.door.open && aabb(p, {x:G.door.x+4,y:G.door.y,w:G.door.w-4,h:G.door.h})){
-    winLevel();
+  // ---- win: reach the open door -> play the escape celebration, then the win screen
+  if(G.door.open && !celebrate.active && aabb(p, {x:G.door.x+4,y:G.door.y,w:G.door.w-4,h:G.door.h})){
+    startCelebration();
   }
 
   // particles
@@ -693,13 +712,43 @@ function drawDoor(th){
 // ---------- Elvis the husky ----------
 function drawElvis(p){
   const cx=p.x+p.w/2, feet=p.y+p.h;
-  // shadow
-  ctx.fillStyle='rgba(0,0,0,0.22)';
-  ctx.beginPath(); ctx.ellipse(cx, feet-2, 22, 6, 0,0,7); ctx.fill();
+
+  // ---- escape celebration pose: howl -> crouch -> backflip -> land & wag ----
+  let cRot=0, cHop=0, cHowl=0, cWag=0;
+  if(celebrate.active){
+    const t=celebrate.t;
+    if(t<34){ cHowl=Math.min(1, t/8); }
+    else if(t<CELEB.flipStart){ cHowl=Math.max(0, 1-(t-34)/8); }
+    else if(t<CELEB.landFrame){
+      const k=(t-CELEB.flipStart)/(CELEB.landFrame-CELEB.flipStart);
+      cHop=Math.sin(k*Math.PI)*120; cRot=-k*Math.PI*2;
+    } else { cWag=1; }
+  }
+
+  // shadow (shrinks as he leaps)
+  const shS = 1 - Math.min(0.7, cHop/170);
+  ctx.fillStyle='rgba(0,0,0,'+(0.22*shS)+')';
+  ctx.beginPath(); ctx.ellipse(cx, feet-2, 22*shS, 6*shS, 0,0,7); ctx.fill();
+
+  // floating "Awooo" while howling
+  if(cHowl>0.4){
+    ctx.save();
+    ctx.globalAlpha=cHowl; ctx.fillStyle='#fff';
+    ctx.font='bold 15px Trebuchet MS'; ctx.textAlign='center';
+    ctx.fillText('Awooo~ 🎵', cx, feet-72 - Math.sin(animTime*0.25)*3);
+    ctx.restore();
+  }
 
   ctx.save();
-  ctx.translate(cx, feet);
-  ctx.scale(p.facing, 1);
+  if(celebrate.active){
+    ctx.translate(cx, feet - cHop - 22);   // pivot around the body centre
+    ctx.rotate(cRot);
+    ctx.scale(p.facing, 1);
+    ctx.translate(0, 22);                   // restore feet-origin for the draw code
+  } else {
+    ctx.translate(cx, feet);
+    ctx.scale(p.facing, 1);
+  }
 
   const moving = Math.abs(p.vx)>0.1 && p.onGround;
   const air = !p.onGround;
@@ -721,7 +770,8 @@ function drawElvis(p){
   // ----- tail (back, left side) -----
   ctx.save();
   ctx.translate(-19,-22+bob);
-  const tw = moving ? Math.sin(legPhase)*0.25 : Math.sin(animTime*0.06)*0.15;
+  const tw = cWag>0 ? Math.sin(animTime*0.6)*0.6
+           : moving ? Math.sin(legPhase)*0.25 : Math.sin(animTime*0.06)*0.15;
   ctx.rotate(-0.5+tw);
   ctx.fillStyle=W;
   ctx.beginPath();
@@ -764,8 +814,8 @@ function drawElvis(p){
 
   // ----- head ----- (lifts and looks up while reaching for the lever)
   ctx.save();
-  ctx.translate(17,-30+bob - rear*7);
-  ctx.rotate(-rear*0.15);
+  ctx.translate(17,-30+bob - rear*7 - cHowl*4);
+  ctx.rotate(-rear*0.15 - cHowl*0.5);
   // ear
   ctx.fillStyle=W;
   ctx.beginPath(); ctx.moveTo(-6,-8); ctx.lineTo(-12,-22); ctx.lineTo(2,-12); ctx.closePath(); ctx.fill();
@@ -780,10 +830,16 @@ function drawElvis(p){
   ctx.beginPath(); ctx.ellipse(13,2,9,6,0,0,7); ctx.fill();
   ctx.fillStyle=SH;
   ctx.beginPath(); ctx.ellipse(13,5,8,3,0,0,7); ctx.fill();
-  // tongue (panting)
-  ctx.fillStyle=PINK;
-  roundRect(16,6,6,9,3); ctx.fill();
-  ctx.fillStyle='#e8849b'; ctx.fillRect(18.5,8,1.5,6);
+  if(cHowl>0.3){
+    // open howling mouth
+    ctx.fillStyle='#7d2a3a'; ctx.beginPath(); ctx.ellipse(17,8,4,6,0,0,7); ctx.fill();
+    ctx.fillStyle=PINK; ctx.beginPath(); ctx.ellipse(17,10,2.1,3.4,0,0,7); ctx.fill();
+  } else {
+    // tongue (panting)
+    ctx.fillStyle=PINK;
+    roundRect(16,6,6,9,3); ctx.fill();
+    ctx.fillStyle='#e8849b'; ctx.fillRect(18.5,8,1.5,6);
+  }
   // nose
   ctx.fillStyle=NOSE; ctx.beginPath(); ctx.ellipse(20,1,3,2.4,0,0,7); ctx.fill();
   ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(19,0,0.9,0,7); ctx.fill();
@@ -869,10 +925,17 @@ function startLevel(idx){
 }
 function beginPlay(){ hide('introScreen'); running=true; if(actx&&actx.state==='suspended')actx.resume(); }
 
+function startCelebration(){
+  if(celebrate.active) return;
+  celebrate.active=true; celebrate.t=0;
+  const p=G.player; p.vx=0; p.vy=0;
+  celebrate.baseX=p.x; celebrate.baseY=p.y;
+  flash("ESCAPED! 🐺");
+}
 function winLevel(){
   if(!running) return;
   running=false; sfx.win();
-  el('win-title').textContent = 'Escaped the '+G.L.room+'!';
+  el('win-title').textContent = 'Escaped '+G.L.room+'!';
   el('win-blurb').textContent = G.L.win + (G.socksGot? '  (+'+G.socksGot+' sock'+(G.socksGot>1?'s':'')+' nabbed)':'');
   show('winScreen');
 }
